@@ -26,7 +26,10 @@ executable filter-tokens
                      , conduit
                      , conduit-extra
                      , containers
+                     , lens
+                     , lens-aeson
                      , optparse-applicative
+                     , resourcet
                      , text
                      , transformers
                      , unordered-containers
@@ -34,4 +37,3 @@ executable filter-tokens
   default-language:    Haskell2010
 
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
-

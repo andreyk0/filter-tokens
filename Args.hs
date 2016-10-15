@@ -3,42 +3,45 @@
 
 module Args (
   Args(..)
+, Cmd(..)
 , runWithArgs
 ) where
 
 
 import           Data.Monoid
+import           Data.Text (Text)
+import qualified Data.Text as T
 import           Options.Applicative
 
 
-data Custom = Custom1 | Custom2 deriving (Eq, Show, Ord)
+data Cmd = FilterJson !Text -- ^ JSON field path, search JSON objects
+         | FilterText -- ^ search text
 
 
-data Args = Args { argVerbose :: Bool
-                 , argCustom :: Custom
-                 } deriving (Show)
+data Args = Args { argTokensFileName :: !FilePath
+                 , argCaseConv :: Text -> Text
+                 , argCmd :: !Cmd
+                 }
 
 
 parseArgs :: Parser Args
 parseArgs = Args
-     <$> switch
-         ( long "verbose"
-        <> short 'v'
-        <> help "Be verbose.")
-     <*> option parseCustomArg
-         ( long "custom-arg"
-        <> short 'c'
-        <> value Custom1
-        <> showDefault
-        <> help "Arg with a custom parser." )
-
-
-parseCustomArg :: ReadM Custom
-parseCustomArg = eitherReader $ \s ->
-  case s
-    of "c1" -> Right Custom1
-       "c2" -> Right Custom2
-       x    -> Left $ "Failed to parse custom argument " <> x <> ", expected 'c1' or 'c2'"
+     <$> strOption
+         ( long "tokens-file-name"
+        <> short 't'
+        <> help "Tokens to search for, one per line.")
+     <*> ( fmap (\caseConv -> if caseConv then T.toCaseFold else id) $ switch
+         ( long "ignore-case"
+        <> short 'i'
+        <> help "Case insensitive match." ))
+     <*> subparser
+       (   command "json"
+            (info (FilterJson <$> fmap T.pack (argument str (metavar "json.field.path")))
+                (progDesc "Filter JSON, one object per line."))
+        <> command "text"
+            (info (pure FilterText)
+                (progDesc "Filter lines of text."))
+       )
 
 
 runWithArgs:: (Args -> IO ())
@@ -47,6 +50,5 @@ runWithArgs rwa = execParser opts >>= rwa
   where
     opts = info (helper <*> parseArgs)
       ( fullDesc
-     <> progDesc ( "Add program description here")
-     <> header "Add program header here." )
-
+     <> progDesc ( "Reads input from STDIN. Filters lines of input (JSON objects or text) matching a given set of tokens.")
+     <> header "Filters lines of input (JSON objects or text) matching a given set of tokens." )

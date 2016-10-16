@@ -14,36 +14,63 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Resource
 import           Data.Aeson as J
 import           Data.Aeson.Lens
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.UTF8 as B8
+import qualified Data.Char as C
 import           Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
+import qualified Data.List as DL
+import           Data.Maybe
 import           Data.Monoid
-import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import qualified Data.Trie as TR
 import           System.IO
 
 
 main:: IO ()
 main = runWithArgs $ \args@Args{..} -> do
-  patterns <- fmap (Set.fromList . T.lines . argCaseConv) $ TIO.readFile argTokensFileName
-
   case argCmd
-    of FilterJson fieldPath -> filterJSONObjects args fieldPath patterns
-       _ ->  putStrLn "todo"
+    of FilterJson fieldPath -> filterJSONObjects args fieldPath
+       FilterText ->  filterTextLines args
+
+
+filterTextLines :: Args
+                -> IO ()
+filterTextLines Args{..} = do
+  let !caseConv = if argIgnoreCase then B8.fromString . (fmap C.toTitle) . B8.toString else id
+
+  patterns <- LB.readFile argTokensFileName >>= return . (fmap caseConv) . B8.lines . LB.toStrict
+  let !tr = TR.fromList $ fmap (\p -> (p,())) patterns
+
+  let linesIn = CB.sourceHandle stdin =$= CB.lines
+
+  let lineMatches l = isJust $ DL.find isJust $
+          fmap (TR.match tr) $ BS.tails (caseConv l)
+
+  runResourceT $ linesIn
+    =$= CL.filter lineMatches
+    =$= CL.map (<> "\n")
+    $$ CB.sinkHandle stdout
+
+
 
 
 filterJSONObjects :: Args
                   -> Text
-                  -> Set Text
                   -> IO ()
-filterJSONObjects Args{..} fieldPath patterns = do
+filterJSONObjects Args{..} fieldPath = do
+  let !caseConv = if argIgnoreCase then T.toCaseFold else id
+
+  patterns <- fmap (Set.fromList . T.lines . caseConv) $ TIO.readFile argTokensFileName
+
   let linesIn = CB.sourceHandle stdin =$= CB.lines
 
-      parseJsonLine l = case decode (B.fromStrict l)
+      parseJsonLine l = case decode (LB.fromStrict l)
                           of Nothing -> liftIO $ hPutStrLn stderr $ "Failed to decode input line " <> (show l)
                              Just jv -> yield jv
 
@@ -53,11 +80,11 @@ filterJSONObjects Args{..} fieldPath patterns = do
       jsonObjMatches o = case o ^? key fieldPath
                            of Nothing -> False
                               Just v -> case v
-                                          of J.String t -> Set.member (argCaseConv t) patterns
+                                          of J.String t -> Set.member (caseConv t) patterns
                                              _          -> False
 
   runResourceT $ jsonIn
     =$= CL.filter jsonObjMatches
-    =$= CL.map (B.toStrict . encode)
+    =$= CL.map (LB.toStrict . encode)
     =$= CL.map (<> "\n")
     $$ CB.sinkHandle stdout

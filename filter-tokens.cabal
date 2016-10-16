@@ -23,6 +23,7 @@ executable filter-tokens
   build-depends:       base
                      , aeson
                      , bytestring
+                     , bytestring-trie
                      , conduit
                      , conduit-extra
                      , containers
@@ -33,7 +34,8 @@ executable filter-tokens
                      , text
                      , transformers
                      , unordered-containers
+                     , utf8-string
 
   default-language:    Haskell2010
 
-  ghc-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall -O3 -threaded -rtsopts -with-rtsopts=-N

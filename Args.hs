@@ -19,7 +19,7 @@ data Cmd = FilterJson !Text -- ^ JSON field path, search JSON objects
 
 
 data Args = Args { argTokensFileName :: !FilePath
-                 , argCaseConv :: Text -> Text
+                 , argIgnoreCase :: !Bool
                  , argCmd :: !Cmd
                  }
 
@@ -30,10 +30,10 @@ parseArgs = Args
          ( long "tokens-file-name"
         <> short 't'
         <> help "Tokens to search for, one per line.")
-     <*> ( fmap (\caseConv -> if caseConv then T.toCaseFold else id) $ switch
+     <*> switch
          ( long "ignore-case"
         <> short 'i'
-        <> help "Case insensitive match." ))
+        <> help "Case insensitive match." )
      <*> subparser
        (   command "json"
             (info (FilterJson <$> fmap T.pack (argument str (metavar "json.field.path")))

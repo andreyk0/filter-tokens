@@ -17,7 +17,6 @@ import           Data.Aeson.Lens
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.UTF8 as B8
-import qualified Data.Char as C
 import           Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
@@ -27,6 +26,7 @@ import           Data.Monoid
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import qualified Data.Trie as TR
 import           System.IO
@@ -42,7 +42,7 @@ main = runWithArgs $ \args@Args{..} -> do
 filterTextLines :: Args
                 -> IO ()
 filterTextLines Args{..} = do
-  let !caseConv = if argIgnoreCase then B8.fromString . (fmap C.toTitle) . B8.toString else id
+  let !caseConv = if argIgnoreCase then TE.encodeUtf8 . T.toCaseFold . TE.decodeUtf8 else id
 
   patterns <- LB.readFile argTokensFileName >>= return . (fmap caseConv) . B8.lines . LB.toStrict
   let !tr = TR.fromList $ fmap (\p -> (p,())) patterns
